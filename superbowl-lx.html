@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Super Bowl LX — Live Play-by-Play</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   CSS VARIABLES & RESET
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg: #0a0e17;
+  --bg-card: rgba(15, 20, 35, 0.85);
+  --bg-glass: rgba(20, 28, 50, 0.65);
+  --border-glass: rgba(100, 120, 180, 0.18);
+  --text: #e8ecf4;
+  --text-dim: #8892a8;
+  --text-bright: #ffffff;
+  --accent: #4a9eff;
+  --field-green: #1a5c2a;
+  --field-line: rgba(255,255,255,0.85);
+  --pass: #4a9eff;
+  --rush: #f0a030;
+  --kick: #e8d44d;
+  --turnover: #ff4060;
+  --td: #40d870;
+  --penalty: #b060ff;
+  --glass-blur: 16px;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --transition: 0.3s ease;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOADING SCREEN
+   ═══════════════════════════════════════════════════════════════ */
+#loading-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: opacity 0.6s ease;
+}
+#loading-screen.hidden { opacity: 0; pointer-events: none; }
+#loading-screen h1 { font-size: 2rem; color: var(--text-bright); margin-bottom: 8px; letter-spacing: 2px; }
+#loading-screen p { color: var(--text-dim); font-size: 0.95rem; }
+.loader { width: 48px; height: 48px; border: 4px solid var(--border-glass); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════════
+   SCOREBOARD HEADER
+   ═══════════════════════════════════════════════════════════════ */
+#scoreboard {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: 1px solid var(--border-glass);
+  padding: 10px 20px;
+  display: flex; align-items: center; justify-content: center; gap: 24px;
+  flex-wrap: wrap;
+}
+.team-block {
+  display: flex; align-items: center; gap: 10px;
+}
+.team-block.away { flex-direction: row; }
+.team-block.home { flex-direction: row-reverse; }
+.team-logo { width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.08); object-fit: contain; }
+.team-name { font-size: 0.85rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+.team-score {
+  font-size: 2.4rem; font-weight: 800; color: var(--text-bright);
+  min-width: 50px; text-align: center;
+  transition: color 0.3s, text-shadow 0.3s;
+}
+.team-score.flash { color: var(--td); text-shadow: 0 0 20px var(--td); }
+.possession-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: var(--td);
+  display: none; animation: pulse-dot 1.2s ease-in-out infinite;
+}
+.team-block .possession-dot.active { display: inline-block; }
+@keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.4); } }
+
+.game-info {
+  text-align: center; min-width: 140px;
+}
+.game-quarter { font-size: 1rem; font-weight: 700; color: var(--accent); }
+.game-clock { font-size: 1.5rem; font-weight: 700; color: var(--text-bright); font-variant-numeric: tabular-nums; }
+.game-situation { font-size: 0.8rem; color: var(--text-dim); }
+
+/* ═══════════════════════════════════════════════════════════════
+   FILTER BAR
+   ═══════════════════════════════════════════════════════════════ */
+#filter-bar {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 20px; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-glass);
+}
+.filter-btn {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass);
+  color: var(--text-dim); padding: 5px 14px; border-radius: 20px;
+  font-size: 0.8rem; cursor: pointer; transition: var(--transition);
+  text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+}
+.filter-btn:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+.filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.filter-btn[data-type="pass"].active { background: var(--pass); border-color: var(--pass); }
+.filter-btn[data-type="rush"].active { background: var(--rush); border-color: var(--rush); color: #000; }
+.filter-btn[data-type="kick"].active { background: var(--kick); border-color: var(--kick); color: #000; }
+.filter-btn[data-type="turnover"].active { background: var(--turnover); border-color: var(--turnover); }
+.filter-btn[data-type="td"].active { background: var(--td); border-color: var(--td); color: #000; }
+.filter-btn[data-type="penalty"].active { background: var(--penalty); border-color: var(--penalty); }
+
+#quarter-filter {
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border-glass);
+  color: var(--text); padding: 5px 10px; border-radius: 20px;
+  font-size: 0.8rem; cursor: pointer; margin-left: 8px;
+}
+#quarter-filter option { background: var(--bg); }
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN LAYOUT
+   ═══════════════════════════════════════════════════════════════ */
+#main {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 0;
+  min-height: calc(100vh - 120px);
+}
+#field-container {
+  padding: 16px;
+  display: flex; align-items: flex-start; justify-content: center;
+  overflow: hidden;
+}
+#field-container svg {
+  width: 100%; max-width: 1200px; height: auto;
+  filter: drop-shadow(0 4px 24px rgba(0,0,0,0.5));
+  border-radius: var(--radius);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR
+   ═══════════════════════════════════════════════════════════════ */
+#sidebar {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-left: 1px solid var(--border-glass);
+  display: flex; flex-direction: column;
+  max-height: calc(100vh - 110px);
+  position: sticky; top: 110px;
+}
+.sidebar-header {
+  padding: 14px 16px 10px;
+  font-size: 0.85rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--text-dim);
+  border-bottom: 1px solid var(--border-glass);
+}
+#timeline {
+  flex: 1; overflow-y: auto; padding: 8px 0;
+}
+#timeline::-webkit-scrollbar { width: 5px; }
+#timeline::-webkit-scrollbar-track { background: transparent; }
+#timeline::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+.timeline-item {
+  padding: 10px 16px;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  transition: background var(--transition);
+  animation: slideIn 0.3s ease-out both;
+}
+.timeline-item:hover { background: rgba(255,255,255,0.04); }
+.timeline-item.active { background: rgba(74, 158, 255, 0.08); }
+.timeline-item[data-ptype="pass"] { border-left-color: var(--pass); }
+.timeline-item[data-ptype="rush"] { border-left-color: var(--rush); }
+.timeline-item[data-ptype="kick"] { border-left-color: var(--kick); }
+.timeline-item[data-ptype="turnover"] { border-left-color: var(--turnover); }
+.timeline-item[data-ptype="td"] { border-left-color: var(--td); }
+.timeline-item[data-ptype="penalty"] { border-left-color: var(--penalty); }
+@keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+.tl-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.tl-quarter { font-size: 0.7rem; color: var(--text-dim); font-weight: 600; }
+.tl-clock { font-size: 0.7rem; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.tl-badge {
+  font-size: 0.6rem; padding: 1px 6px; border-radius: 4px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+}
+.tl-badge.pass { background: rgba(74,158,255,0.2); color: var(--pass); }
+.tl-badge.rush { background: rgba(240,160,48,0.2); color: var(--rush); }
+.tl-badge.kick { background: rgba(232,212,77,0.2); color: var(--kick); }
+.tl-badge.turnover { background: rgba(255,64,96,0.2); color: var(--turnover); }
+.tl-badge.td { background: rgba(64,216,112,0.2); color: var(--td); }
+.tl-badge.penalty { background: rgba(176,96,255,0.2); color: var(--penalty); }
+.tl-team {
+  font-size: 0.6rem; padding: 1px 5px; border-radius: 3px;
+  font-weight: 700; letter-spacing: 0.5px;
+  border: 1px solid; opacity: 0.9;
+}
+.tl-desc { font-size: 0.8rem; color: var(--text); line-height: 1.4; }
+.tl-yards { font-size: 0.75rem; color: var(--text-dim); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   AI ANALYST PANEL (bottom of sidebar)
+   ═══════════════════════════════════════════════════════════════ */
+#ai-analyst {
+  border-top: 1px solid var(--border-glass);
+  max-height: 220px;
+  transition: max-height 0.4s ease;
+  overflow: hidden;
+}
+#ai-analyst.collapsed { max-height: 38px; }
+.ai-analyst-header {
+  padding: 8px 16px; display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; font-size: 0.8rem; font-weight: 700; color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.ai-analyst-header span { display: flex; align-items: center; gap: 6px; }
+.ai-analyst-toggle { transition: transform 0.3s; font-size: 0.7rem; }
+#ai-analyst.collapsed .ai-analyst-toggle { transform: rotate(180deg); }
+#ai-analyst-content {
+  padding: 0 16px 12px; font-size: 0.8rem; color: var(--text);
+  line-height: 1.5; overflow-y: auto; max-height: 170px;
+}
+#ai-analyst-content::-webkit-scrollbar { width: 4px; }
+#ai-analyst-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+.ai-placeholder { color: var(--text-dim); font-style: italic; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PLAY DETAIL PANEL (overlay)
+   ═══════════════════════════════════════════════════════════════ */
+#detail-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: none; align-items: center; justify-content: center;
+  animation: fadeIn 0.25s ease;
+}
+#detail-overlay.open { display: flex; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+#detail-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius);
+  width: 90%; max-width: 520px; max-height: 85vh;
+  overflow-y: auto; padding: 24px;
+  animation: slideUp 0.3s ease;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+
+#detail-panel::-webkit-scrollbar { width: 5px; }
+#detail-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+.detail-close {
+  float: right; background: none; border: none; color: var(--text-dim);
+  font-size: 1.4rem; cursor: pointer; padding: 0 4px;
+  transition: color 0.2s;
+}
+.detail-close:hover { color: var(--text); }
+
+.detail-header { margin-bottom: 16px; }
+.detail-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.detail-meta .tl-badge { font-size: 0.7rem; padding: 2px 8px; }
+.detail-qtr-clock { font-size: 0.85rem; color: var(--text-dim); }
+.detail-down { font-size: 0.85rem; color: var(--text-dim); }
+.detail-desc { font-size: 1rem; color: var(--text-bright); line-height: 1.5; margin: 12px 0; }
+
+.detail-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  margin: 16px 0;
+}
+.stat-box {
+  background: rgba(255,255,255,0.04); border-radius: var(--radius-sm);
+  padding: 10px; text-align: center;
+}
+.stat-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-value { font-size: 1.2rem; font-weight: 700; color: var(--text-bright); margin-top: 2px; }
+
+.detail-badges { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+.detail-badge-tag {
+  font-size: 0.7rem; padding: 3px 10px; border-radius: 4px;
+  font-weight: 700; text-transform: uppercase;
+}
+.detail-badge-tag.scoring { background: rgba(64,216,112,0.15); color: var(--td); border: 1px solid rgba(64,216,112,0.3); }
+.detail-badge-tag.turnover-tag { background: rgba(255,64,96,0.15); color: var(--turnover); border: 1px solid rgba(255,64,96,0.3); }
+
+.detail-ai {
+  margin-top: 16px; padding-top: 16px;
+  border-top: 1px solid var(--border-glass);
+}
+.detail-ai-label { font-size: 0.75rem; color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.detail-ai-text { font-size: 0.85rem; color: var(--text); line-height: 1.55; }
+.detail-ai-text.loading { color: var(--text-dim); font-style: italic; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ERROR TOAST
+   ═══════════════════════════════════════════════════════════════ */
+#toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: rgba(255,64,96,0.9); color: #fff; padding: 10px 20px;
+  border-radius: var(--radius-sm); font-size: 0.85rem; z-index: 700;
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+#toast.visible { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SVG FIELD STYLES
+   ═══════════════════════════════════════════════════════════════ */
+.play-marker {
+  cursor: pointer;
+  transition: r 0.2s, opacity 0.2s;
+  animation: markerPop 0.4s ease both;
+}
+.play-marker:hover { r: 11; }
+@keyframes markerPop { from { r: 0; opacity: 0; } to { opacity: 1; } }
+.play-marker.latest { animation: markerPop 0.4s ease both, pulse-marker 1.5s ease-in-out infinite 0.4s; }
+@keyframes pulse-marker {
+  0%, 100% { filter: drop-shadow(0 0 4px currentColor); }
+  50% { filter: drop-shadow(0 0 14px currentColor); }
+}
+.play-marker.highlight { r: 12; stroke: #fff; stroke-width: 2; }
+.play-marker.hidden, .play-marker-label.hidden { display: none; }
+
+.field-los { stroke: #4af; stroke-width: 2; stroke-dasharray: 6 4; opacity: 0.7; }
+.field-first-down { stroke: #ffcc00; stroke-width: 2; opacity: 0.7; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PREGAME / POSTGAME OVERLAYS
+   ═══════════════════════════════════════════════════════════════ */
+.field-overlay-text {
+  fill: rgba(255,255,255,0.7); font-size: 38px; font-weight: 800;
+  text-anchor: middle; letter-spacing: 4px;
+  paint-order: stroke; stroke: rgba(0,0,0,0.4); stroke-width: 2;
+}
+.final-badge {
+  fill: #ffd700; font-size: 32px; font-weight: 800; text-anchor: middle;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  #main { grid-template-columns: 1fr; }
+  #sidebar {
+    position: static; max-height: 50vh;
+    border-left: none; border-top: 1px solid var(--border-glass);
+  }
+  #scoreboard { gap: 14px; padding: 8px 12px; }
+  .team-score { font-size: 1.8rem; }
+  .game-clock { font-size: 1.2rem; }
+}
+@media (max-width: 600px) {
+  .team-name { display: none; }
+  #filter-bar { gap: 5px; padding: 8px 10px; }
+  .filter-btn { padding: 4px 10px; font-size: 0.7rem; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LOADING SCREEN
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="loading-screen">
+  <div class="loader"></div>
+  <h1>SUPER BOWL LX</h1>
+  <p>Loading play-by-play data...</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     SCOREBOARD HEADER
+     ═══════════════════════════════════════════════════════════════ -->
+<header id="scoreboard">
+  <div class="team-block away">
+    <img class="team-logo" id="away-logo" src="" alt="">
+    <div>
+      <div class="team-name" id="away-name">AWAY</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="team-score" id="away-score">0</span>
+        <span class="possession-dot" id="away-poss"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-info">
+    <div class="game-quarter" id="game-quarter">PRE-GAME</div>
+    <div class="game-clock" id="game-clock">--:--</div>
+    <div class="game-situation" id="game-situation">&nbsp;</div>
+  </div>
+
+  <div class="team-block home">
+    <img class="team-logo" id="home-logo" src="" alt="">
+    <div>
+      <div class="team-name" id="home-name">HOME</div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="team-score" id="home-score">0</span>
+        <span class="possession-dot" id="home-poss"></span>
+      </div>
+    </div>
+  </div>
+
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     FILTER BAR
+     ═══════════════════════════════════════════════════════════════ -->
+<nav id="filter-bar">
+  <button class="filter-btn active" data-type="all">All</button>
+  <button class="filter-btn" data-type="pass">Pass</button>
+  <button class="filter-btn" data-type="rush">Rush</button>
+  <button class="filter-btn" data-type="kick">Kick</button>
+  <button class="filter-btn" data-type="turnover">Turnover</button>
+  <button class="filter-btn" data-type="td">Touchdown</button>
+  <button class="filter-btn" data-type="penalty">Penalty</button>
+  <select id="quarter-filter">
+    <option value="all">All Quarters</option>
+    <option value="1">Q1</option>
+    <option value="2">Q2</option>
+    <option value="3">Q3</option>
+    <option value="4">Q4</option>
+    <option value="5">OT</option>
+  </select>
+  <select id="team-filter">
+    <option value="all">Both Teams</option>
+  </select>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     MAIN CONTENT: FIELD + SIDEBAR
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="main">
+  <div id="field-container"></div>
+
+  <aside id="sidebar">
+    <div class="sidebar-header">Play-by-Play</div>
+    <div id="timeline"></div>
+    <div id="ai-analyst">
+      <div class="ai-analyst-header" id="ai-analyst-toggle">
+        <span>&#9733; AI Analyst</span>
+        <span class="ai-analyst-toggle">&#9650;</span>
+      </div>
+      <div id="ai-analyst-content">
+        <p class="ai-placeholder">AI analysis not available</p>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     PLAY DETAIL OVERLAY
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="detail-overlay">
+  <div id="detail-panel">
+    <button class="detail-close" id="detail-close">&times;</button>
+    <div class="detail-header">
+      <div class="detail-meta">
+        <span class="tl-badge" id="detail-type-badge"></span>
+        <span class="detail-qtr-clock" id="detail-qtr-clock"></span>
+      </div>
+      <div class="detail-down" id="detail-down"></div>
+    </div>
+    <div class="detail-desc" id="detail-desc"></div>
+    <div class="detail-badges" id="detail-badges"></div>
+    <div class="detail-stats" id="detail-stats"></div>
+    <div class="detail-ai">
+      <div class="detail-ai-label">&#9733; AI Analysis</div>
+      <div class="detail-ai-text" id="detail-ai-text">
+        AI analysis not available
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     ERROR TOAST
+     ═══════════════════════════════════════════════════════════════ -->
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════
+   STATE
+   ═══════════════════════════════════════════════════════════════ */
+const state = {
+  gameId: null,
+  teams: { away: null, home: null },
+  plays: [],
+  playIds: new Set(),
+  prevScores: { away: 0, home: 0 },
+  filters: { type: 'all', quarter: 'all', team: 'all' },
+  selectedPlayId: null,
+  pollingTimer: null,
+  gameCompleted: false,
+  aiCache: {},
+  aiAnalysisCache: '',
+  lastAnalysisDriveCount: 0,
+  playCountAtLastAnalysis: 0,
+  aiEnabled: false,
+};
+
+const FALLBACK_GAME_ID = '401772988';
+const ESPN_SCOREBOARD = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard';
+const ESPN_SUMMARY = (id) => 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary?event=' + id;
+/* ═══════════════════════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════════════════════ */
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+
+function createSVG(tag, attrs) {
+  var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  if (attrs) { for (var k in attrs) { if (attrs.hasOwnProperty(k)) el.setAttribute(k, attrs[k]); } }
+  return el;
+}
+
+function createEl(tag, className, textContent) {
+  var el = document.createElement(tag);
+  if (className) el.className = className;
+  if (textContent != null) el.textContent = textContent;
+  return el;
+}
+
+async function fetchWithRetry(url, options, retries) {
+  retries = retries || 3;
+  for (var i = 0; i < retries; i++) {
+    try {
+      var res = await fetch(url, options || {});
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } catch (e) {
+      if (i === retries - 1) throw e;
+      await new Promise(function(r) { setTimeout(r, 1000 * Math.pow(2, i)); });
+    }
+  }
+}
+
+function showToast(msg, duration) {
+  duration = duration || 4000;
+  var t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('visible');
+  setTimeout(function() { t.classList.remove('visible'); }, duration);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AI STATUS CHECK
+   ═══════════════════════════════════════════════════════════════ */
+async function checkAiStatus() {
+  try {
+    var res = await fetch('/api/status');
+    if (res.ok) {
+      var data = await res.json();
+      state.aiEnabled = !!data.ai_enabled;
+    }
+  } catch (e) {
+    console.warn('AI status check failed:', e);
+    state.aiEnabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PLAY CLASSIFICATION
+   ═══════════════════════════════════════════════════════════════ */
+function classifyPlay(play) {
+  if (play.scoringPlay && play.scoringType && play.scoringType.name && play.scoringType.name.toLowerCase().indexOf('touchdown') !== -1) return 'td';
+  if (play.isTurnover) return 'turnover';
+  if (play.scoringPlay && play.scoringType && play.scoringType.name && play.scoringType.name.toLowerCase().indexOf('field goal') !== -1) return 'kick';
+
+  var typeId = play.type && play.type.id ? Number(play.type.id) : 0;
+  if (typeId === 5) return 'rush';
+  if ([24, 3, 26, 51, 67].indexOf(typeId) !== -1) return 'pass';
+  if (typeId === 7) return 'pass';
+  if ([52, 53, 54, 55, 56, 59, 60, 61, 62, 36].indexOf(typeId) !== -1) return 'kick';
+  if (typeId === 8) return 'penalty';
+
+  var txt = (play.text || '').toLowerCase();
+  if (txt.indexOf('pass') !== -1 || txt.indexOf('sack') !== -1) return 'pass';
+  if (txt.indexOf('rush') !== -1 || txt.indexOf('run ') !== -1) return 'rush';
+  if (txt.indexOf('punt') !== -1 || txt.indexOf('kick') !== -1 || txt.indexOf('field goal') !== -1) return 'kick';
+  if (txt.indexOf('fumble') !== -1 || txt.indexOf('intercept') !== -1) return 'turnover';
+  if (txt.indexOf('penalty') !== -1) return 'penalty';
+
+  return 'pass';
+}
+
+function playTypeLabel(t) {
+  var labels = { pass: 'Pass', rush: 'Rush', kick: 'Kick', turnover: 'Turnover', td: 'Touchdown', penalty: 'Penalty' };
+  return labels[t] || t;
+}
+
+function playColor(t) {
+  var colors = { pass: '#4a9eff', rush: '#f0a030', kick: '#e8d44d', turnover: '#ff4060', td: '#40d870', penalty: '#b060ff' };
+  return colors[t] || '#4a9eff';
+}
+
+function possTeamInfo(possTeamId) {
+  var away = state.teams.away;
+  var home = state.teams.home;
+  if (away && possTeamId === away.id) return { abbr: away.abbreviation, color: '#' + away.color };
+  if (home && possTeamId === home.id) return { abbr: home.abbreviation, color: '#' + home.color };
+  return { abbr: '?', color: '#888' };
+}
+
+function ordinal(n) {
+  var s = ['th','st','nd','rd'];
+  var v = n % 100;
+  return (s[(v-20)%10] || s[v] || s[0]);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   COORDINATE MAPPING
+   ═══════════════════════════════════════════════════════════════ */
+function yardLineToX(yardsToEndzone, possTeamId) {
+  if (yardsToEndzone == null) return 600;
+  var yte = Number(yardsToEndzone);
+  if (state.teams.away && possTeamId === state.teams.away.id) {
+    return 100 + (100 - yte) * 10;
+  } else {
+    return 100 + yte * 10;
+  }
+}
+
+var yardOccupancy = {};
+function calculatePlayY(x) {
+  var key = Math.round(x / 10) * 10;
+  if (!yardOccupancy[key]) yardOccupancy[key] = 0;
+  var offset = yardOccupancy[key];
+  yardOccupancy[key]++;
+  var baseY = 266;
+  var stagger = ((offset % 6) - 2.5) * 35;
+  return Math.max(45, Math.min(488, baseY + stagger));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   BUILD SVG FIELD
+   ═══════════════════════════════════════════════════════════════ */
+function buildField() {
+  var svg = createSVG('svg', { viewBox: '0 0 1200 533', preserveAspectRatio: 'xMidYMid meet' });
+
+  // Glow filter definitions
+  var defs = createSVG('defs');
+  var types = ['pass','rush','kick','turnover','td','penalty'];
+  types.forEach(function(t) {
+    var filter = createSVG('filter', { id: 'glow-' + t, x: '-50%', y: '-50%', width: '200%', height: '200%' });
+    var blur = createSVG('feGaussianBlur', { stdDeviation: '3', result: 'glow' });
+    var merge = createSVG('feMerge');
+    var mn1 = createSVG('feMergeNode', { in: 'glow' });
+    var mn2 = createSVG('feMergeNode', { in: 'SourceGraphic' });
+    merge.appendChild(mn1);
+    merge.appendChild(mn2);
+    filter.appendChild(blur);
+    filter.appendChild(merge);
+    defs.appendChild(filter);
+  });
+  svg.appendChild(defs);
+
+  // Field background
+  svg.appendChild(createSVG('rect', { x: 0, y: 0, width: 1200, height: 533, fill: '#0d3320', rx: 8 }));
+
+  // End zones
+  var awayColor = state.teams.away && state.teams.away.color ? '#' + state.teams.away.color : '#1a3a6e';
+  var homeColor = state.teams.home && state.teams.home.color ? '#' + state.teams.home.color : '#6e1a1a';
+  svg.appendChild(createSVG('rect', { id: 'endzone-away', x: 0, y: 0, width: 100, height: 533, fill: awayColor, opacity: 0.5, rx: 8 }));
+  svg.appendChild(createSVG('rect', { id: 'endzone-home', x: 1100, y: 0, width: 100, height: 533, fill: homeColor, opacity: 0.5, rx: 8 }));
+
+  // End zone labels
+  if (state.teams.away && state.teams.away.abbreviation) {
+    var ta = createSVG('text', { x: 50, y: 280, fill: 'rgba(255,255,255,0.3)', 'font-size': '36', 'font-weight': '800', 'text-anchor': 'middle', transform: 'rotate(-90,50,280)' });
+    ta.textContent = state.teams.away.abbreviation;
+    svg.appendChild(ta);
+  }
+  if (state.teams.home && state.teams.home.abbreviation) {
+    var th = createSVG('text', { x: 1150, y: 280, fill: 'rgba(255,255,255,0.3)', 'font-size': '36', 'font-weight': '800', 'text-anchor': 'middle', transform: 'rotate(90,1150,280)' });
+    th.textContent = state.teams.home.abbreviation;
+    svg.appendChild(th);
+  }
+
+  // Field border
+  svg.appendChild(createSVG('rect', { x: 100, y: 0, width: 1000, height: 533, fill: 'none', stroke: 'rgba(255,255,255,0.8)', 'stroke-width': 2 }));
+
+  // 10-yard lines
+  for (var yd = 10; yd <= 90; yd += 10) {
+    svg.appendChild(createSVG('line', { x1: 100 + yd * 10, y1: 0, x2: 100 + yd * 10, y2: 533, stroke: 'rgba(255,255,255,0.35)', 'stroke-width': 1 }));
+  }
+
+  // 5-yard lines
+  for (var yd5 = 5; yd5 <= 95; yd5 += 10) {
+    svg.appendChild(createSVG('line', { x1: 100 + yd5 * 10, y1: 0, x2: 100 + yd5 * 10, y2: 533, stroke: 'rgba(255,255,255,0.12)', 'stroke-width': 0.5 }));
+  }
+
+  // Hash marks
+  for (var h = 1; h <= 99; h++) {
+    var hx = 100 + h * 10;
+    svg.appendChild(createSVG('line', { x1: hx, y1: 170, x2: hx, y2: 180, stroke: 'rgba(255,255,255,0.3)', 'stroke-width': 0.7 }));
+    svg.appendChild(createSVG('line', { x1: hx, y1: 353, x2: hx, y2: 363, stroke: 'rgba(255,255,255,0.3)', 'stroke-width': 0.7 }));
+  }
+
+  // Yard numbers
+  var yardNums = [10,20,30,40,50,40,30,20,10];
+  yardNums.forEach(function(num, i) {
+    var nx = 100 + (i + 1) * 100;
+    var t1 = createSVG('text', { x: nx, y: 50, fill: 'rgba(255,255,255,0.25)', 'font-size': '28', 'font-weight': '700', 'text-anchor': 'middle' });
+    t1.textContent = num;
+    svg.appendChild(t1);
+    var t2 = createSVG('text', { x: nx, y: 515, fill: 'rgba(255,255,255,0.25)', 'font-size': '28', 'font-weight': '700', 'text-anchor': 'middle' });
+    t2.textContent = num;
+    svg.appendChild(t2);
+  });
+
+  // Line of scrimmage & first down (hidden initially)
+  svg.appendChild(createSVG('line', { id: 'los-line', class: 'field-los', x1: 600, y1: 0, x2: 600, y2: 533, visibility: 'hidden' }));
+  svg.appendChild(createSVG('line', { id: 'fd-line', class: 'field-first-down', x1: 700, y1: 0, x2: 700, y2: 533, visibility: 'hidden' }));
+
+  // Plays layer
+  svg.appendChild(createSVG('g', { id: 'plays-layer' }));
+
+  // Overlay text layer
+  svg.appendChild(createSVG('g', { id: 'field-overlay' }));
+
+  var container = $('#field-container');
+  while (container.firstChild) container.removeChild(container.firstChild);
+  container.appendChild(svg);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ESPN DATA: FIND GAME
+   ═══════════════════════════════════════════════════════════════ */
+async function findGameId() {
+  try {
+    var data = await fetchWithRetry(ESPN_SCOREBOARD);
+    var events = (data && data.events) || [];
+    for (var i = 0; i < events.length; i++) {
+      var ev = events[i];
+      var name = ((ev.name || '') + (ev.shortName || '')).toLowerCase();
+      var notes = ((ev.competitions && ev.competitions[0] && ev.competitions[0].notes && ev.competitions[0].notes[0] && ev.competitions[0].notes[0].headline) || '').toLowerCase();
+      if (name.indexOf('super bowl') !== -1 || notes.indexOf('super bowl') !== -1) {
+        return ev.id;
+      }
+    }
+    if (events.length > 0) return events[0].id;
+  } catch (e) {
+    console.warn('Scoreboard lookup failed, using fallback', e);
+  }
+  return FALLBACK_GAME_ID;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ESPN DATA: FETCH & PARSE
+   ═══════════════════════════════════════════════════════════════ */
+async function fetchGameData() {
+  return await fetchWithRetry(ESPN_SUMMARY(state.gameId));
+}
+
+function parseTeams(data) {
+  var header = data && data.header;
+  var competition = header && header.competitions && header.competitions[0];
+  var competitors = (competition && competition.competitors) || [];
+
+  var away = null, home = null;
+
+  competitors.forEach(function(c) {
+    var t = c.team || {};
+    var team = {
+      id: t.id,
+      name: t.name || t.displayName || 'Team',
+      abbreviation: t.abbreviation || '',
+      logo: (t.logos && t.logos[0] && t.logos[0].href) || '',
+      color: t.color || '333333',
+      altColor: t.alternateColor || '999999',
+      score: Number(c.score) || 0,
+      possession: c.possession || false,
+    };
+    if (c.homeAway === 'away') away = team;
+    else home = team;
+  });
+
+  // Fallback to boxscore
+  if (!away || !home) {
+    var boxTeams = (data && data.boxscore && data.boxscore.teams) || [];
+    if (!away && boxTeams[0]) {
+      var bt = boxTeams[0].team || {};
+      away = { id: bt.id, name: bt.displayName || bt.name || 'Away', abbreviation: bt.abbreviation || '', logo: bt.logo || '', color: bt.color || '333333', altColor: bt.alternateColor || '999999', score: 0, possession: false };
+    }
+    if (!home && boxTeams[1]) {
+      var bt2 = boxTeams[1].team || {};
+      home = { id: bt2.id, name: bt2.displayName || bt2.name || 'Home', abbreviation: bt2.abbreviation || '', logo: bt2.logo || '', color: bt2.color || '333333', altColor: bt2.alternateColor || '999999', score: 0, possession: false };
+    }
+  }
+
+  state.teams.away = away;
+  state.teams.home = home;
+}
+
+function parseGameStatus(data) {
+  var status = data && data.header && data.header.competitions && data.header.competitions[0] && data.header.competitions[0].status;
+  var situation = data && data.situation;
+  var statusType = (status && status.type) || {};
+  return {
+    period: (status && status.period) || 0,
+    clock: (status && status.displayClock) || '--:--',
+    completed: statusType.completed || false,
+    state: statusType.state || 'pre',
+    description: statusType.description || '',
+    down: (situation && situation.down) || 0,
+    distance: (situation && situation.distance) || 0,
+    yardLine: (situation && situation.yardLine) || 0,
+    possessionTeamId: (situation && situation.possession) || null,
+    downDistanceText: (situation && situation.downDistanceText) || '',
+    lastPlay: (situation && situation.lastPlay && situation.lastPlay.text) || '',
+  };
+}
+
+function parsePlays(data) {
+  var drives = (data && data.drives && data.drives.previous) || [];
+  var currentDrive = data && data.drives && data.drives.current;
+  var allDrives = currentDrive ? drives.concat([currentDrive]) : drives;
+
+  var plays = [];
+  allDrives.forEach(function(drive, di) {
+    var drivePlays = (drive && drive.plays) || [];
+    var driveTeamId = drive && drive.team && drive.team.id;
+    drivePlays.forEach(function(p) {
+      var playId = p.id || (di + '-' + (p.sequenceNumber || plays.length));
+      plays.push({
+        id: String(playId),
+        driveIndex: di,
+        quarter: (p.period && p.period.number) || 0,
+        clock: (p.clock && p.clock.displayValue) || '',
+        type: p.type,
+        text: p.text || p.description || '',
+        yardsGained: (p.statYardage != null) ? p.statYardage : (p.yards != null ? p.yards : null),
+        yardsToEndzone: (p.end && p.end.yardsToEndzone != null) ? p.end.yardsToEndzone : ((p.start && p.start.yardsToEndzone != null) ? p.start.yardsToEndzone : null),
+        startYardsToEndzone: (p.start && p.start.yardsToEndzone != null) ? p.start.yardsToEndzone : null,
+        down: (p.start && p.start.down) || 0,
+        distance: (p.start && p.start.distance) || 0,
+        scoringPlay: p.scoringPlay || false,
+        scoringType: p.scoringType || null,
+        isTurnover: !!(p.turnover),
+        possTeamId: driveTeamId,
+        homeScore: (p.homeScore != null) ? p.homeScore : null,
+        awayScore: (p.awayScore != null) ? p.awayScore : null,
+        sequenceNumber: p.sequenceNumber || 0,
+      });
+    });
+  });
+
+  return plays;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDERING: SCOREBOARD
+   ═══════════════════════════════════════════════════════════════ */
+function updateScoreboard(gameStatus) {
+  var away = state.teams.away;
+  var home = state.teams.home;
+
+  if (away) {
+    $('#away-logo').src = away.logo;
+    $('#away-logo').alt = away.abbreviation;
+    $('#away-name').textContent = away.name;
+    $('#away-score').textContent = away.score;
+    if (away.score !== state.prevScores.away) {
+      $('#away-score').classList.add('flash');
+      setTimeout(function() { $('#away-score').classList.remove('flash'); }, 1500);
+    }
+  }
+  if (home) {
+    $('#home-logo').src = home.logo;
+    $('#home-logo').alt = home.abbreviation;
+    $('#home-name').textContent = home.name;
+    $('#home-score').textContent = home.score;
+    if (home.score !== state.prevScores.home) {
+      $('#home-score').classList.add('flash');
+      setTimeout(function() { $('#home-score').classList.remove('flash'); }, 1500);
+    }
+  }
+
+  state.prevScores = { away: away ? away.score : 0, home: home ? home.score : 0 };
+
+  // Possession dots
+  $('#away-poss').classList.toggle('active', gameStatus.possessionTeamId === (away && away.id));
+  $('#home-poss').classList.toggle('active', gameStatus.possessionTeamId === (home && home.id));
+
+  // Game info
+  if (gameStatus.state === 'post') {
+    $('#game-quarter').textContent = 'FINAL';
+    $('#game-clock').textContent = '';
+  } else if (gameStatus.state === 'pre') {
+    $('#game-quarter').textContent = 'PRE-GAME';
+    $('#game-clock').textContent = gameStatus.description || '';
+  } else {
+    var qtr = gameStatus.period <= 4 ? 'Q' + gameStatus.period : 'OT' + (gameStatus.period - 4 > 1 ? gameStatus.period - 4 : '');
+    $('#game-quarter').textContent = qtr;
+    $('#game-clock').textContent = gameStatus.clock;
+  }
+  $('#game-situation').textContent = gameStatus.downDistanceText || '\u00A0';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDERING: LINE OF SCRIMMAGE & FIRST DOWN
+   ═══════════════════════════════════════════════════════════════ */
+function updateFieldLines(gameStatus) {
+  var los = document.getElementById('los-line');
+  var fd = document.getElementById('fd-line');
+  if (!los || !fd) return;
+
+  if (gameStatus.state !== 'in' || !gameStatus.possessionTeamId || !gameStatus.yardLine) {
+    los.setAttribute('visibility', 'hidden');
+    fd.setAttribute('visibility', 'hidden');
+    return;
+  }
+
+  var lastPlay = state.plays.length > 0 ? state.plays[state.plays.length - 1] : null;
+  if (lastPlay && lastPlay.yardsToEndzone != null) {
+    var losX = yardLineToX(lastPlay.yardsToEndzone, lastPlay.possTeamId);
+    los.setAttribute('x1', losX);
+    los.setAttribute('x2', losX);
+    los.setAttribute('visibility', 'visible');
+
+    if (gameStatus.down > 0 && gameStatus.distance > 0) {
+      var fdYards = lastPlay.yardsToEndzone - gameStatus.distance;
+      if (fdYards > 0) {
+        var fdX = yardLineToX(fdYards, lastPlay.possTeamId);
+        fd.setAttribute('x1', fdX);
+        fd.setAttribute('x2', fdX);
+        fd.setAttribute('visibility', 'visible');
+      } else {
+        fd.setAttribute('visibility', 'hidden');
+      }
+    } else {
+      fd.setAttribute('visibility', 'hidden');
+    }
+  } else {
+    los.setAttribute('visibility', 'hidden');
+    fd.setAttribute('visibility', 'hidden');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDERING: PLAY MARKERS ON FIELD
+   ═══════════════════════════════════════════════════════════════ */
+function renderPlay(play, index, isNew) {
+  var layer = document.getElementById('plays-layer');
+  if (!layer) return;
+
+  var ptype = classifyPlay(play);
+  play._type = ptype;
+
+  if (play.yardsToEndzone == null && play.startYardsToEndzone == null) return;
+
+  var yte = play.yardsToEndzone != null ? play.yardsToEndzone : play.startYardsToEndzone;
+  var x = yardLineToX(yte, play.possTeamId);
+  var y = calculatePlayY(x);
+  var r = play.scoringPlay ? 10 : 7;
+  var color = playColor(ptype);
+  var team = possTeamInfo(play.possTeamId);
+
+  var circle = createSVG('circle', {
+    cx: x, cy: y, r: r,
+    fill: color,
+    opacity: 0.85,
+    stroke: team.color,
+    'stroke-width': 2.5,
+    filter: 'url(#glow-' + ptype + ')',
+    class: 'play-marker' + (isNew ? ' latest' : ''),
+    'data-play-id': play.id,
+    'data-ptype': ptype,
+    'data-quarter': play.quarter,
+    'data-team': play.possTeamId || '',
+  });
+  if (isNew) {
+    circle.style.animationDelay = (index * 0.08) + 's';
+  }
+  circle.addEventListener('click', function() { showPlayDetail(play.id); });
+  layer.appendChild(circle);
+
+  // Team abbreviation label
+  var label = createSVG('text', {
+    x: x, y: y - r - 4,
+    fill: team.color,
+    'font-size': '9',
+    'font-weight': '700',
+    'text-anchor': 'middle',
+    'pointer-events': 'none',
+    opacity: 0.9,
+    class: 'play-marker-label',
+    'data-play-id': play.id,
+    'data-ptype': ptype,
+    'data-quarter': play.quarter,
+    'data-team': play.possTeamId || '',
+  });
+  label.textContent = team.abbr;
+  layer.appendChild(label);
+
+  // Remove 'latest' from previous markers
+  if (isNew) {
+    layer.querySelectorAll('.play-marker.latest').forEach(function(m) {
+      if (m.getAttribute('data-play-id') !== play.id) m.classList.remove('latest');
+    });
+  }
+}
+
+function renderAllPlays() {
+  Object.keys(yardOccupancy).forEach(function(k) { delete yardOccupancy[k]; });
+  var layer = document.getElementById('plays-layer');
+  if (layer) { while (layer.firstChild) layer.removeChild(layer.firstChild); }
+  state.plays.forEach(function(p, i) { renderPlay(p, i, false); });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RENDERING: TIMELINE SIDEBAR (safe DOM construction)
+   ═══════════════════════════════════════════════════════════════ */
+function renderTimeline() {
+  var container = $('#timeline');
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  var filtered = state.plays.filter(function(p) {
+    p._type = p._type || classifyPlay(p);
+    if (state.filters.type !== 'all' && p._type !== state.filters.type) return false;
+    if (state.filters.quarter !== 'all' && String(p.quarter) !== state.filters.quarter) return false;
+    if (state.filters.team !== 'all' && p.possTeamId !== state.filters.team) return false;
+    return true;
+  });
+  var sorted = filtered.slice().reverse();
+
+  sorted.forEach(function(play, i) {
+    var div = document.createElement('div');
+    div.className = 'timeline-item' + (play.id === state.selectedPlayId ? ' active' : '');
+    div.dataset.playId = play.id;
+    div.dataset.ptype = play._type;
+    div.style.animationDelay = (i * 0.03) + 's';
+
+    var qtr = play.quarter <= 4 ? 'Q' + play.quarter : 'OT';
+
+    // Build header row
+    var team = possTeamInfo(play.possTeamId);
+    var header = createEl('div', 'tl-header');
+    var teamBadge = createEl('span', 'tl-team', team.abbr);
+    teamBadge.style.color = team.color;
+    teamBadge.style.borderColor = team.color;
+    header.appendChild(teamBadge);
+    header.appendChild(createEl('span', 'tl-quarter', qtr));
+    header.appendChild(createEl('span', 'tl-clock', play.clock));
+    header.appendChild(createEl('span', 'tl-badge ' + play._type, playTypeLabel(play._type)));
+    div.appendChild(header);
+
+    // Description (safe textContent)
+    div.appendChild(createEl('div', 'tl-desc', play.text));
+
+    // Yards
+    if (play.yardsGained != null) {
+      var yardsText = (play.yardsGained >= 0 ? '+' : '') + play.yardsGained + ' yds';
+      div.appendChild(createEl('div', 'tl-yards', yardsText));
+    }
+
+    div.addEventListener('click', function() { showPlayDetail(play.id); });
+    container.appendChild(div);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PLAY DETAIL PANEL (safe DOM construction)
+   ═══════════════════════════════════════════════════════════════ */
+function showPlayDetail(playId) {
+  var play = state.plays.find(function(p) { return p.id === playId; });
+  if (!play) return;
+
+  state.selectedPlayId = playId;
+  play._type = play._type || classifyPlay(play);
+
+  // Type badge
+  var badge = $('#detail-type-badge');
+  badge.textContent = playTypeLabel(play._type);
+  badge.className = 'tl-badge ' + play._type;
+
+  // Quarter & clock with team
+  var qtr = play.quarter <= 4 ? 'Q' + play.quarter : 'OT';
+  var detailTeam = possTeamInfo(play.possTeamId);
+  $('#detail-qtr-clock').textContent = detailTeam.abbr + ' \u00B7 ' + qtr + ' \u00B7 ' + play.clock;
+  $('#detail-qtr-clock').style.color = detailTeam.color;
+
+  // Down & distance
+  $('#detail-down').textContent = play.down ? play.down + ordinal(play.down) + ' & ' + play.distance : '';
+
+  // Description (safe)
+  $('#detail-desc').textContent = play.text;
+
+  // Badges (safe DOM construction)
+  var badgesEl = $('#detail-badges');
+  while (badgesEl.firstChild) badgesEl.removeChild(badgesEl.firstChild);
+  if (play.scoringPlay) {
+    var scoreBadge = createEl('span', 'detail-badge-tag scoring', (play.scoringType && play.scoringType.name) || 'Scoring Play');
+    badgesEl.appendChild(scoreBadge);
+  }
+  if (play.isTurnover) {
+    var tBadge = createEl('span', 'detail-badge-tag turnover-tag', 'Turnover');
+    badgesEl.appendChild(tBadge);
+  }
+
+  // Stats (safe DOM construction)
+  var statsEl = $('#detail-stats');
+  while (statsEl.firstChild) statsEl.removeChild(statsEl.firstChild);
+
+  var yds = play.yardsGained != null ? ((play.yardsGained >= 0 ? '+' : '') + play.yardsGained) : '--';
+  var score = (play.awayScore != null && play.homeScore != null) ? (play.awayScore + ' - ' + play.homeScore) : '--';
+  var fpos = play.yardsToEndzone != null ? (play.yardsToEndzone + ' to EZ') : '--';
+
+  var statItems = [
+    { label: 'Yards', value: yds },
+    { label: 'Score', value: score },
+    { label: 'Field Pos', value: fpos },
+  ];
+  statItems.forEach(function(s) {
+    var box = createEl('div', 'stat-box');
+    box.appendChild(createEl('div', 'stat-label', s.label));
+    box.appendChild(createEl('div', 'stat-value', s.value));
+    statsEl.appendChild(box);
+  });
+
+  // Highlight marker on field
+  document.querySelectorAll('.play-marker').forEach(function(m) { m.classList.remove('highlight'); });
+  var marker = document.querySelector('.play-marker[data-play-id="' + CSS.escape(playId) + '"]');
+  if (marker) marker.classList.add('highlight');
+
+  // Update timeline active state
+  $$('.timeline-item').forEach(function(t) { t.classList.toggle('active', t.dataset.playId === playId); });
+
+  // AI commentary
+  loadPlayAI(play);
+
+  // Show overlay
+  $('#detail-overlay').classList.add('open');
+}
+
+function closeDetail() {
+  $('#detail-overlay').classList.remove('open');
+  document.querySelectorAll('.play-marker').forEach(function(m) { m.classList.remove('highlight'); });
+  state.selectedPlayId = null;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AI: PLAY COMMENTARY
+   ═══════════════════════════════════════════════════════════════ */
+async function loadPlayAI(play) {
+  var el = $('#detail-ai-text');
+  if (!state.aiEnabled) {
+    el.textContent = 'AI analysis not available';
+    el.className = 'detail-ai-text';
+    return;
+  }
+
+  if (state.aiCache[play.id]) {
+    el.textContent = state.aiCache[play.id];
+    el.className = 'detail-ai-text';
+    return;
+  }
+
+  el.textContent = 'Analyzing play...';
+  el.className = 'detail-ai-text loading';
+
+  try {
+    var away = state.teams.away;
+    var home = state.teams.home;
+    var prompt = 'You are an expert NFL color commentator providing tactical analysis. Analyze this play in 2-3 sentences.\n\n' +
+      'Game: ' + (away ? away.name : 'Away') + ' (' + (play.awayScore != null ? play.awayScore : '?') + ') vs ' + (home ? home.name : 'Home') + ' (' + (play.homeScore != null ? play.homeScore : '?') + ')\n' +
+      'Quarter: ' + (play.quarter <= 4 ? 'Q' + play.quarter : 'OT') + ' | Clock: ' + play.clock + '\n' +
+      'Down & Distance: ' + (play.down ? play.down + ordinal(play.down) + ' & ' + play.distance : 'N/A') + '\n' +
+      'Field Position: ' + (play.yardsToEndzone != null ? play.yardsToEndzone + ' yards to endzone' : 'Unknown') + '\n' +
+      'Play: ' + play.text + '\n' +
+      'Yards Gained: ' + (play.yardsGained != null ? play.yardsGained : 'N/A') + '\n' +
+      (play.scoringPlay ? 'SCORING PLAY: ' + ((play.scoringType && play.scoringType.name) || 'Score') + '\n' : '') +
+      (play.isTurnover ? 'TURNOVER\n' : '') +
+      '\nGive brief, insightful tactical commentary about why this play worked or didn\'t, what it reveals about strategy, and its impact on the game. Be specific and analytical.';
+
+    var response = await callClaude(prompt);
+    state.aiCache[play.id] = response;
+    if (state.selectedPlayId === play.id) {
+      el.textContent = response;
+      el.className = 'detail-ai-text';
+    }
+  } catch (e) {
+    console.error('AI play analysis failed:', e);
+    if (state.selectedPlayId === play.id) {
+      el.textContent = 'AI analysis unavailable.';
+      el.className = 'detail-ai-text';
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   AI: STRATEGIC / DRIVE ANALYSIS (safe DOM update)
+   ═══════════════════════════════════════════════════════════════ */
+async function updateStrategicAnalysis() {
+  var el = $('#ai-analyst-content');
+  if (!state.aiEnabled) {
+    setPlaceholder(el, 'AI analysis not available');
+    return;
+  }
+
+  var currentPlayCount = state.plays.length;
+  if (currentPlayCount - state.playCountAtLastAnalysis < 5 && currentPlayCount > 0) return;
+  state.playCountAtLastAnalysis = currentPlayCount;
+
+  if (state.plays.length < 3) {
+    setPlaceholder(el, 'Waiting for more plays to analyze...');
+    return;
+  }
+
+  setPlaceholder(el, 'Analyzing game trends...');
+
+  try {
+    var recentPlays = state.plays.slice(-15).map(function(p) {
+      p._type = p._type || classifyPlay(p);
+      var qtr = p.quarter <= 4 ? 'Q' + p.quarter : 'OT';
+      return '[' + qtr + ' ' + p.clock + '] ' + playTypeLabel(p._type) + ': ' + p.text + ' (' + (p.yardsGained != null ? p.yardsGained : '?') + ' yds)';
+    }).join('\n');
+
+    var away = state.teams.away;
+    var home = state.teams.home;
+    var prompt = 'You are an expert NFL analyst providing strategic commentary during a live game.\n\n' +
+      'Game: ' + (away ? away.name : 'Away') + ' ' + (away ? away.score : 0) + ' - ' + (home ? home.name : 'Home') + ' ' + (home ? home.score : 0) + ' (Super Bowl LX)\n\n' +
+      'Recent plays:\n' + recentPlays + '\n\n' +
+      'In 3-4 concise bullet points, provide:\n' +
+      '- Run/pass tendencies and what they reveal\n' +
+      '- Momentum assessment\n' +
+      '- Key strategic observations\n' +
+      '- What to watch for next\n\n' +
+      'Be specific, reference actual plays, and sound like an expert analyst. Use bullet points with dashes.';
+
+    var response = await callClaude(prompt);
+    state.aiAnalysisCache = response;
+
+    // Safe text update
+    while (el.firstChild) el.removeChild(el.firstChild);
+    var pre = document.createElement('div');
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.textContent = response;
+    el.appendChild(pre);
+  } catch (e) {
+    console.error('Strategic analysis failed:', e);
+    setPlaceholder(el, 'Analysis unavailable.');
+  }
+}
+
+function setPlaceholder(container, text) {
+  while (container.firstChild) container.removeChild(container.firstChild);
+  var p = createEl('p', 'ai-placeholder', text);
+  container.appendChild(p);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CLAUDE API CALL
+   ═══════════════════════════════════════════════════════════════ */
+async function callClaude(userPrompt) {
+  var res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: userPrompt, max_tokens: 300 }),
+  });
+
+  var data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error || 'API error: ' + res.status);
+  }
+  return data.text || 'No response generated.';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FILTERS
+   ═══════════════════════════════════════════════════════════════ */
+function applyFilters() {
+  document.querySelectorAll('.play-marker, .play-marker-label').forEach(function(m) {
+    var ptype = m.getAttribute('data-ptype');
+    var quarter = m.getAttribute('data-quarter');
+    var teamId = m.getAttribute('data-team');
+    var visible = true;
+    if (state.filters.type !== 'all' && ptype !== state.filters.type) visible = false;
+    if (state.filters.quarter !== 'all' && quarter !== state.filters.quarter) visible = false;
+    if (state.filters.team !== 'all' && teamId !== state.filters.team) visible = false;
+    m.classList.toggle('hidden', !visible);
+  });
+  renderTimeline();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FIELD OVERLAY (PREGAME / POSTGAME)
+   ═══════════════════════════════════════════════════════════════ */
+function showFieldOverlay(gameStatus) {
+  var g = document.getElementById('field-overlay');
+  if (!g) return;
+  while (g.firstChild) g.removeChild(g.firstChild);
+
+  if (gameStatus.state === 'pre') {
+    var txt = createSVG('text', { x: 600, y: 250, class: 'field-overlay-text' });
+    txt.textContent = 'SUPER BOWL LX';
+    g.appendChild(txt);
+    var sub = createSVG('text', { x: 600, y: 300, fill: 'rgba(255,255,255,0.45)', 'font-size': '18', 'text-anchor': 'middle', 'font-weight': '600' });
+    sub.textContent = gameStatus.description || 'Pregame';
+    g.appendChild(sub);
+  } else if (gameStatus.state === 'post') {
+    var fin = createSVG('text', { x: 600, y: 60, class: 'final-badge' });
+    fin.textContent = 'FINAL';
+    g.appendChild(fin);
+    var away = state.teams.away;
+    var home = state.teams.home;
+    if (away && home) {
+      var winnerId = away.score > home.score ? 'endzone-away' : 'endzone-home';
+      var ez = document.getElementById(winnerId);
+      if (ez) { ez.setAttribute('fill', '#ffd700'); ez.setAttribute('opacity', '0.35'); }
+    }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE UPDATE / POLLING
+   ═══════════════════════════════════════════════════════════════ */
+async function poll() {
+  try {
+    var data = await fetchGameData();
+    var gameStatus = parseGameStatus(data);
+
+    parseTeams(data);
+    updateScoreboard(gameStatus);
+    updateFieldLines(gameStatus);
+    showFieldOverlay(gameStatus);
+
+    var allPlays = parsePlays(data);
+    var newPlays = [];
+    allPlays.forEach(function(p) {
+      if (!state.playIds.has(p.id)) {
+        state.playIds.add(p.id);
+        state.plays.push(p);
+        newPlays.push(p);
+      }
+    });
+
+    // Update existing plays with fresh data
+    allPlays.forEach(function(p) {
+      var existing = state.plays.find(function(ep) { return ep.id === p.id; });
+      if (existing) {
+        if (p.homeScore != null) existing.homeScore = p.homeScore;
+        if (p.awayScore != null) existing.awayScore = p.awayScore;
+        if (p.yardsGained != null) existing.yardsGained = p.yardsGained;
+      }
+    });
+
+    if (newPlays.length > 0) {
+      newPlays.forEach(function(p, i) { renderPlay(p, i, true); });
+      renderTimeline();
+      updateStrategicAnalysis();
+    }
+
+    state.gameCompleted = gameStatus.completed;
+
+    if (!gameStatus.completed) {
+      var interval = gameStatus.state === 'pre' ? 60000 : 12000;
+      state.pollingTimer = setTimeout(poll, interval);
+    }
+  } catch (e) {
+    console.error('Poll error:', e);
+    showToast('Data refresh failed. Retrying...');
+    state.pollingTimer = setTimeout(poll, 15000);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EVENT LISTENERS
+   ═══════════════════════════════════════════════════════════════ */
+function setupEvents() {
+  $('#detail-close').addEventListener('click', closeDetail);
+  $('#detail-overlay').addEventListener('click', function(e) {
+    if (e.target === $('#detail-overlay')) closeDetail();
+  });
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { closeDetail(); }
+  });
+
+  // Filter buttons
+  $$('.filter-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      $$('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      state.filters.type = btn.dataset.type;
+      applyFilters();
+    });
+  });
+  $('#quarter-filter').addEventListener('change', function(e) {
+    state.filters.quarter = e.target.value;
+    applyFilters();
+  });
+  $('#team-filter').addEventListener('change', function(e) {
+    state.filters.team = e.target.value;
+    applyFilters();
+  });
+
+  // AI Analyst toggle
+  $('#ai-analyst-toggle').addEventListener('click', function() {
+    $('#ai-analyst').classList.toggle('collapsed');
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ERROR DISPLAY (safe DOM construction)
+   ═══════════════════════════════════════════════════════════════ */
+function showLoadError(message) {
+  var screen = $('#loading-screen');
+  while (screen.firstChild) screen.removeChild(screen.firstChild);
+
+  var h = createEl('h1', null, 'Error Loading Data');
+  h.style.color = '#ff4060';
+  screen.appendChild(h);
+
+  var p = createEl('p', null, message);
+  p.style.color = '#8892a8';
+  p.style.marginTop = '10px';
+  screen.appendChild(p);
+
+  var btn = document.createElement('button');
+  btn.textContent = 'Retry';
+  btn.style.cssText = 'margin-top:20px;padding:10px 24px;border-radius:8px;background:#4a9eff;color:#fff;border:none;cursor:pointer;font-size:1rem';
+  btn.addEventListener('click', function() { location.reload(); });
+  screen.appendChild(btn);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════════ */
+async function init() {
+  setupEvents();
+
+  try {
+    // 1. Find game
+    state.gameId = await findGameId();
+    console.log('Game ID:', state.gameId);
+
+    // 2. Fetch data
+    var data = await fetchGameData();
+
+    // 3. Parse teams
+    parseTeams(data);
+
+    // 3b. Populate team filter dropdown
+    var teamSelect = $('#team-filter');
+    if (state.teams.away) {
+      var opt = document.createElement('option');
+      opt.value = state.teams.away.id;
+      opt.textContent = state.teams.away.abbreviation;
+      teamSelect.appendChild(opt);
+    }
+    if (state.teams.home) {
+      var opt = document.createElement('option');
+      opt.value = state.teams.home.id;
+      opt.textContent = state.teams.home.abbreviation;
+      teamSelect.appendChild(opt);
+    }
+
+    // 4. Build field
+    buildField();
+
+    // 5. Game status
+    var gameStatus = parseGameStatus(data);
+    updateScoreboard(gameStatus);
+    showFieldOverlay(gameStatus);
+
+    // 6. Parse & render plays
+    var plays = parsePlays(data);
+    plays.forEach(function(p) {
+      state.playIds.add(p.id);
+      state.plays.push(p);
+    });
+    renderAllPlays();
+    renderTimeline();
+    updateFieldLines(gameStatus);
+
+    // 7. Hide loading
+    $('#loading-screen').classList.add('hidden');
+    setTimeout(function() { $('#loading-screen').style.display = 'none'; }, 600);
+
+    // 8. Start polling
+    if (!gameStatus.completed) {
+      var interval = gameStatus.state === 'pre' ? 60000 : 12000;
+      state.pollingTimer = setTimeout(poll, interval);
+    }
+
+    // 9. Check AI availability and run initial analysis
+    await checkAiStatus();
+    updateStrategicAnalysis();
+
+  } catch (e) {
+    console.error('Init error:', e);
+    showLoadError(e.message);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+})();
+</script>
+</body>
+</html>
