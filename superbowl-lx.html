@@ -1199,7 +1199,7 @@ async function loadPlayAI(play) {
   } catch (e) {
     console.error('AI play analysis failed:', e);
     if (state.selectedPlayId === play.id) {
-      el.textContent = 'AI analysis unavailable.';
+      el.textContent = e.message === 'RATE_LIMITED' ? 'Rate limit reached — try again shortly.' : 'AI analysis unavailable.';
       el.className = 'detail-ai-text';
     }
   }
@@ -1256,7 +1256,7 @@ async function updateStrategicAnalysis() {
     el.appendChild(pre);
   } catch (e) {
     console.error('Strategic analysis failed:', e);
-    setPlaceholder(el, 'Analysis unavailable.');
+    setPlaceholder(el, e.message === 'RATE_LIMITED' ? 'Rate limit reached — try again shortly.' : 'Analysis unavailable.');
   }
 }
 
@@ -1276,6 +1276,9 @@ async function callClaude(userPrompt) {
     body: JSON.stringify({ prompt: userPrompt, max_tokens: 300 }),
   });
 
+  if (res.status === 429) {
+    throw new Error('RATE_LIMITED');
+  }
   var data = await res.json();
   if (!res.ok || data.error) {
     throw new Error(data.error || 'API error: ' + res.status);

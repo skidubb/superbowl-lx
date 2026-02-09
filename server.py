@@ -7,10 +7,12 @@ Requires Python 3.11+ (uses built-in tomllib).
 Reads API key from config.toml — copy config.example.toml to get started.
 """
 
+import hashlib
 import http.server
 import json
 import os
 import sys
+import time
 import urllib.request
 import urllib.error
 
@@ -38,6 +40,39 @@ def load_api_key():
 
 
 API_KEY = load_api_key()
+
+MAX_REQUESTS_PER_HOUR = 10
+CACHE_TTL = 3600  # 1 hour
+_rate_limits = {}   # ip -> {"count": int, "window_start": float}
+_response_cache = {}  # prompt_hash -> {"text": str, "ts": float}
+
+
+def _check_rate_limit(ip):
+    now = time.time()
+    record = _rate_limits.get(ip, {"count": 0, "window_start": now})
+    if now - record["window_start"] > 3600:
+        record = {"count": 0, "window_start": now}
+    if record["count"] >= MAX_REQUESTS_PER_HOUR:
+        return False
+    record["count"] += 1
+    _rate_limits[ip] = record
+    return True
+
+
+def _get_cached(prompt_hash):
+    entry = _response_cache.get(prompt_hash)
+    if entry and time.time() - entry["ts"] < CACHE_TTL:
+        return entry["text"]
+    return None
+
+
+def _set_cached(prompt_hash, text):
+    now = time.time()
+    _response_cache[prompt_hash] = {"text": text, "ts": now}
+    # Evict expired entries
+    expired = [k for k, v in _response_cache.items() if now - v["ts"] >= CACHE_TTL]
+    for k in expired:
+        del _response_cache[k]
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -73,6 +108,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._json_response({"error": "prompt is required"}, status=400)
             return
 
+        # Check response cache (cached responses are free — skip rate limit)
+        prompt_hash = hashlib.sha256(prompt.encode()).hexdigest()
+        cached = _get_cached(prompt_hash)
+        if cached:
+            self._json_response({"text": cached})
+            return
+
+        # Rate limit only uncached requests (these hit the Anthropic API)
+        ip = self.client_address[0]
+        if not _check_rate_limit(ip):
+            self._json_response({"error": "Rate limit exceeded. Try again later."}, status=429)
+            return
+
         payload = json.dumps({
             "model": AI_MODEL,
             "max_tokens": max_tokens,
@@ -89,6 +137,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             with urllib.request.urlopen(req) as resp:
                 data = json.loads(resp.read())
             text = data.get("content", [{}])[0].get("text", "No response generated.")
+            _set_cached(prompt_hash, text)
             self._json_response({"text": text})
         except urllib.error.HTTPError as e:
             err_body = e.read().decode(errors="replace")
